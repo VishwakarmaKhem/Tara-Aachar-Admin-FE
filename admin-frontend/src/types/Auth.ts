@@ -12,14 +12,16 @@ export interface LoginFormData {
 }
 
 export interface SignupFormData {
-  name: string;
   email: string;
   password: string;
   confirmPassword: string;
+  phoneNumber: string;
 }
 
 export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  token: string | null;
+  error: string | null;
 }

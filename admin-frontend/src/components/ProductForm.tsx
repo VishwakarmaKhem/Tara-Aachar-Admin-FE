@@ -1,42 +1,50 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Product, ProductFormData, ProductFormErrors } from '../types/Product';
+import { createProduct, updateProduct } from '../services/productService';
+import { uploadImage } from '../services/imageService';
 import './ProductForm.css';
 
 interface ProductFormProps {
   product?: Product | null;
-  onSubmit: (productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => void;
   onCancel?: () => void;
+  onSuccess?: (product: Product) => void;
 }
 
-const ProductForm = ({ product, onSubmit, onCancel }: ProductFormProps) => {
+const ProductForm = ({ product, onCancel, onSuccess }: ProductFormProps) => {
   const [formData, setFormData] = useState<ProductFormData>({
-    name: '',
+    title: '',
     description: '',
     price: 0,
     category: '',
+    variant: 'TANGY',
     ingredients: '',
-    spiceLevel: 'Mild',
-    weight: '',
     imageUrl: '',
-    inStock: true,
-    featured: false,
+    manufacturerName: '',
+    manufacturerLicense: '',
+    allowsCustomIngredients: false,
   });
 
   const [errors, setErrors] = useState<ProductFormErrors>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (product) {
       setFormData({
-        name: product.name,
+        title: product.title,
         description: product.description,
         price: product.price,
         category: product.category,
+        variant: product.variant,
         ingredients: product.ingredients.join(', '),
-        spiceLevel: product.spiceLevel,
-        weight: product.weight,
         imageUrl: product.imageUrl,
-        inStock: product.inStock,
-        featured: product.featured,
+        manufacturerName: product.manufacturerName,
+        manufacturerLicense: product.manufacturerLicense,
+        allowsCustomIngredients: product.allowsCustomIngredients,
       });
     }
   }, [product]);
@@ -44,43 +52,62 @@ const ProductForm = ({ product, onSubmit, onCancel }: ProductFormProps) => {
   const validateForm = (): boolean => {
     const newErrors: ProductFormErrors = {};
 
-    if (!formData.name.trim()) newErrors.name = 'Product name is required';
+    if (!formData.title.trim()) newErrors.title = 'Product title is required';
     if (!formData.description.trim()) newErrors.description = 'Description is required';
     if (formData.price <= 0) newErrors.price = 'Price must be greater than 0';
     if (!formData.category.trim()) newErrors.category = 'Category is required';
+    if (!formData.variant.trim()) newErrors.variant = 'Variant is required';
     if (!formData.ingredients.trim()) newErrors.ingredients = 'Ingredients are required';
-    if (!formData.weight.trim()) newErrors.weight = 'Weight is required';
+    if (!formData.manufacturerName.trim()) newErrors.manufacturerName = 'Manufacturer name is required';
+    if (!formData.manufacturerLicense.trim()) newErrors.manufacturerLicense = 'Manufacturer license is required';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) return;
+
+    setIsLoading(true);
+    setErrorMessage('');
+    setSuccessMessage('');
 
     const productData = {
       ...formData,
       ingredients: formData.ingredients.split(',').map(i => i.trim()).filter(i => i),
     };
 
-    onSubmit(productData);
-    
-    // Reset form if creating new product
-    if (!product) {
-      setFormData({
-        name: '',
-        description: '',
-        price: 0,
-        category: '',
-        ingredients: '',
-        spiceLevel: 'Mild',
-        weight: '',
-        imageUrl: '',
-        inStock: true,
-        featured: false,
-      });
+    try {
+      let response;
+      
+      if (product) {
+        // Update existing product
+        response = await updateProduct(product.id, productData);
+      } else {
+        // Create new product
+        response = await createProduct(productData);
+      }
+
+      if (response.success && response.data) {
+        setSuccessMessage(response.message);
+        
+        // Call onSuccess callback
+        if (onSuccess) {
+          onSuccess(response.data);
+        }
+        
+        // Auto-clear success message after 3 seconds
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        setErrorMessage(response.error || 'Failed to save product');
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'An unexpected error occurred';
+      setErrorMessage(errorMsg);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -104,6 +131,52 @@ const ProductForm = ({ product, onSubmit, onCancel }: ProductFormProps) => {
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setErrorMessage('Please select a valid image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMessage('Image size must be less than 5MB');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress('Uploading image...');
+    setErrorMessage('');
+
+    try {
+      const response = await uploadImage(file, 'Product');
+      
+      if (response.success && response.data) {
+        setFormData(prev => ({ ...prev, imageUrl: response.data! }));
+        setUploadProgress('Image uploaded successfully!');
+        setTimeout(() => setUploadProgress(''), 3000);
+      } else {
+        setErrorMessage(response.error || 'Failed to upload image');
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to upload image';
+      setErrorMessage(errorMsg);
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
     <div className="product-form-container">
       <div className="form-header">
@@ -111,20 +184,32 @@ const ProductForm = ({ product, onSubmit, onCancel }: ProductFormProps) => {
         <p>Fill in the details for your aachar product</p>
       </div>
 
+      {successMessage && (
+        <div className="alert alert-success">
+          ✓ {successMessage}
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="alert alert-error">
+          ✕ {errorMessage}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="product-form">
         <div className="form-grid">
           <div className="form-group">
-            <label htmlFor="name">Product Name *</label>
+            <label htmlFor="title">Product Title *</label>
             <input
               type="text"
-              id="name"
-              name="name"
-              value={formData.name}
+              id="title"
+              name="title"
+              value={formData.title}
               onChange={handleInputChange}
-              className={errors.name ? 'error' : ''}
-              placeholder="e.g., Mango Pickle"
+              className={errors.title ? 'error' : ''}
+              placeholder="e.g., Amla Pickle"
             />
-            {errors.name && <span className="error-message">{errors.name}</span>}
+            {errors.title && <span className="error-message">{errors.title}</span>}
           </div>
 
           <div className="form-group">
@@ -136,9 +221,27 @@ const ProductForm = ({ product, onSubmit, onCancel }: ProductFormProps) => {
               value={formData.category}
               onChange={handleInputChange}
               className={errors.category ? 'error' : ''}
-              placeholder="e.g., Fruit Pickle, Vegetable Pickle"
+              placeholder="e.g., Pickles, Condiments"
             />
             {errors.category && <span className="error-message">{errors.category}</span>}
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="variant">Variant *</label>
+            <select
+              id="variant"
+              name="variant"
+              value={formData.variant}
+              onChange={handleInputChange}
+              className={errors.variant ? 'error' : ''}
+            >
+              <option value="TANGY">Tangy</option>
+              <option value="MILD">Mild</option>
+              <option value="SPICY">Spicy</option>
+              <option value="SWEET">Sweet</option>
+              <option value="MIXED">Mixed</option>
+            </select>
+            {errors.variant && <span className="error-message">{errors.variant}</span>}
           </div>
 
           <div className="form-group">
@@ -152,50 +255,85 @@ const ProductForm = ({ product, onSubmit, onCancel }: ProductFormProps) => {
               className={errors.price ? 'error' : ''}
               min="0"
               step="0.01"
-              placeholder="0.00"
+              placeholder="e.g., 299"
             />
             {errors.price && <span className="error-message">{errors.price}</span>}
           </div>
 
           <div className="form-group">
-            <label htmlFor="weight">Weight *</label>
+            <label htmlFor="imageUrl">Image URL</label>
+            <div className="image-upload-wrapper">
+              <input
+                type="url"
+                id="imageUrl"
+                name="imageUrl"
+                value={formData.imageUrl}
+                onChange={handleInputChange}
+                placeholder="https://example.com/image.jpg"
+                disabled={isUploading}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                style={{ display: 'none' }}
+              />
+              <button
+                type="button"
+                className="btn btn-upload"
+                onClick={handleUploadClick}
+                disabled={isUploading || isLoading}
+              >
+                {isUploading ? (
+                  <>
+                    <div className="spinner-small"></div>
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
+                    </svg>
+                    Upload
+                  </>
+                )}
+              </button>
+            </div>
+            {uploadProgress && <span className="success-message">{uploadProgress}</span>}
+            {formData.imageUrl && (
+              <div className="image-preview">
+                <img src={formData.imageUrl} alt="Preview" />
+              </div>
+            )}
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="manufacturerName">Manufacturer Name *</label>
             <input
               type="text"
-              id="weight"
-              name="weight"
-              value={formData.weight}
+              id="manufacturerName"
+              name="manufacturerName"
+              value={formData.manufacturerName}
               onChange={handleInputChange}
-              className={errors.weight ? 'error' : ''}
-              placeholder="e.g., 500g, 1kg"
+              className={errors.manufacturerName ? 'error' : ''}
+              placeholder="e.g., Tara Aachar Makers"
             />
-            {errors.weight && <span className="error-message">{errors.weight}</span>}
+            {errors.manufacturerName && <span className="error-message">{errors.manufacturerName}</span>}
           </div>
 
           <div className="form-group">
-            <label htmlFor="spiceLevel">Spice Level</label>
-            <select
-              id="spiceLevel"
-              name="spiceLevel"
-              value={formData.spiceLevel}
-              onChange={handleInputChange}
-            >
-              <option value="Mild">Mild</option>
-              <option value="Medium">Medium</option>
-              <option value="Hot">Hot</option>
-              <option value="Extra Hot">Extra Hot</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="imageUrl">Image URL</label>
+            <label htmlFor="manufacturerLicense">Manufacturer License *</label>
             <input
-              type="url"
-              id="imageUrl"
-              name="imageUrl"
-              value={formData.imageUrl}
+              type="text"
+              id="manufacturerLicense"
+              name="manufacturerLicense"
+              value={formData.manufacturerLicense}
               onChange={handleInputChange}
-              placeholder="https://example.com/image.jpg"
+              className={errors.manufacturerLicense ? 'error' : ''}
+              placeholder="e.g., LIC-2024-007"
             />
+            {errors.manufacturerLicense && <span className="error-message">{errors.manufacturerLicense}</span>}
           </div>
         </div>
 
@@ -231,34 +369,25 @@ const ProductForm = ({ product, onSubmit, onCancel }: ProductFormProps) => {
           <label className="checkbox-label">
             <input
               type="checkbox"
-              name="inStock"
-              checked={formData.inStock}
+              name="allowsCustomIngredients"
+              checked={formData.allowsCustomIngredients}
               onChange={handleInputChange}
             />
             <span className="checkmark"></span>
-            In Stock
-          </label>
-
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              name="featured"
-              checked={formData.featured}
-              onChange={handleInputChange}
-            />
-            <span className="checkmark"></span>
-            Featured Product
+            Allows Custom Ingredients
           </label>
         </div>
 
         <div className="form-actions">
           {onCancel && (
-            <button type="button" className="btn btn-secondary" onClick={onCancel}>
+            <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={isLoading}>
               Cancel
             </button>
           )}
-          <button type="submit" className="btn btn-primary">
-            {product ? 'Update Product' : 'Create Product'}
+          <button type="submit" className="btn btn-primary" disabled={isLoading}>
+            {isLoading 
+              ? (product ? 'Updating...' : 'Creating...') 
+              : (product ? 'Update Product' : 'Create Product')}
           </button>
         </div>
       </form>

@@ -1,43 +1,44 @@
+export type ProductVariant = 'TANGY' | 'MILD' | 'SPICY' | 'SWEET' | 'MIXED';
+
 export interface Product {
-  id: string;
-  name: string;
+  id?: string;
+  title: string;
   description: string;
   price: number;
   category: string;
+  variant: ProductVariant;
   ingredients: string[];
-  spiceLevel: 'Mild' | 'Medium' | 'Hot' | 'Extra Hot';
-  weight: string;
   imageUrl: string;
-  inStock: boolean;
-  featured: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  manufacturerName: string;
+  manufacturerLicense: string;
+  allowsCustomIngredients: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface ProductFormData {
-  name: string;
+  title: string;
   description: string;
   price: number;
   category: string;
+  variant: ProductVariant;
   ingredients: string;
-  spiceLevel: 'Mild' | 'Medium' | 'Hot' | 'Extra Hot';
-  weight: string;
   imageUrl: string;
-  inStock: boolean;
-  featured: boolean;
+  manufacturerName: string;
+  manufacturerLicense: string;
+  allowsCustomIngredients: boolean;
 }
 
 export interface ProductFormErrors {
-  name?: string;
+  title?: string;
   description?: string;
   price?: string;
   category?: string;
+  variant?: string;
   ingredients?: string;
-  spiceLevel?: string;
-  weight?: string;
   imageUrl?: string;
-  inStock?: string;
-  featured?: string;
+  manufacturerName?: string;
+  manufacturerLicense?: string;
 }
 
 export interface User {

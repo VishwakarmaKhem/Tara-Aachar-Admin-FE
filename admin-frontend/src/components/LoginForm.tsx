@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import type { LoginFormData } from '../types/Auth';
+import { login } from '../services/authService';
 import './AuthForm.css';
 
 interface LoginFormProps {
-  onLogin: (data: LoginFormData) => void;
+  onLoginSuccess: (token: string, email: string) => void;
   onSwitchToSignup: () => void;
   isLoading?: boolean;
 }
 
-const LoginForm = ({ onLogin, onSwitchToSignup, isLoading = false }: LoginFormProps) => {
+const LoginForm = ({ onLoginSuccess, onSwitchToSignup, isLoading: externalLoading = false }: LoginFormProps) => {
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
@@ -16,6 +17,8 @@ const LoginForm = ({ onLogin, onSwitchToSignup, isLoading = false }: LoginFormPr
 
   const [errors, setErrors] = useState<Partial<LoginFormData>>({});
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const validateForm = (): boolean => {
     const newErrors: Partial<LoginFormData> = {};
@@ -36,11 +39,23 @@ const LoginForm = ({ onLogin, onSwitchToSignup, isLoading = false }: LoginFormPr
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateForm()) {
-      onLogin(formData);
+    
+    if (!validateForm()) return;
+
+    setIsLoading(true);
+    setApiError(null);
+
+    const response = await login(formData);
+    
+    if (response.success && response.data?.token) {
+      onLoginSuccess(response.data.token, formData.email);
+    } else {
+      setApiError(response.error || 'Login failed. Please try again.');
     }
+
+    setIsLoading(false);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,6 +75,12 @@ const LoginForm = ({ onLogin, onSwitchToSignup, isLoading = false }: LoginFormPr
         <p>Sign in to your admin account</p>
       </div>
 
+      {apiError && (
+        <div className="alert alert-error">
+          ✕ {apiError}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="auth-form">
         <div className="form-group">
           <label htmlFor="email">Email Address</label>
@@ -72,7 +93,7 @@ const LoginForm = ({ onLogin, onSwitchToSignup, isLoading = false }: LoginFormPr
               onChange={handleInputChange}
               className={errors.email ? 'error' : ''}
               placeholder="admin@aachar.com"
-              disabled={isLoading}
+              disabled={isLoading || externalLoading}
             />
             <div className="input-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -94,7 +115,7 @@ const LoginForm = ({ onLogin, onSwitchToSignup, isLoading = false }: LoginFormPr
               onChange={handleInputChange}
               className={errors.password ? 'error' : ''}
               placeholder="Enter your password"
-              disabled={isLoading}
+              disabled={isLoading || externalLoading}
             />
             <div className="input-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -105,7 +126,7 @@ const LoginForm = ({ onLogin, onSwitchToSignup, isLoading = false }: LoginFormPr
               type="button"
               className="password-toggle"
               onClick={() => setShowPassword(!showPassword)}
-              disabled={isLoading}
+              disabled={isLoading || externalLoading}
             >
               {showPassword ? (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -135,9 +156,9 @@ const LoginForm = ({ onLogin, onSwitchToSignup, isLoading = false }: LoginFormPr
         <button 
           type="submit" 
           className="auth-submit-btn"
-          disabled={isLoading}
+          disabled={isLoading || externalLoading}
         >
-          {isLoading ? (
+          {isLoading || externalLoading ? (
             <>
               <div className="spinner"></div>
               Signing in...
@@ -154,7 +175,7 @@ const LoginForm = ({ onLogin, onSwitchToSignup, isLoading = false }: LoginFormPr
               type="button" 
               className="link-button" 
               onClick={onSwitchToSignup}
-              disabled={isLoading}
+              disabled={isLoading || externalLoading}
             >
               Sign up
             </button>

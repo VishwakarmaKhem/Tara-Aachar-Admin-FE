@@ -1,38 +1,41 @@
 import { useState } from 'react';
 import type { SignupFormData } from '../types/Auth';
+import { register } from '../services/authService';
 import './AuthForm.css';
 
 interface SignupFormProps {
-  onSignup: (data: Omit<SignupFormData, 'confirmPassword'>) => void;
+  onSignupSuccess: (token: string, email: string) => void;
   onSwitchToLogin: () => void;
   isLoading?: boolean;
 }
 
-const SignupForm = ({ onSignup, onSwitchToLogin, isLoading = false }: SignupFormProps) => {
+const SignupForm = ({ onSignupSuccess, onSwitchToLogin, isLoading: externalLoading = false }: SignupFormProps) => {
   const [formData, setFormData] = useState<SignupFormData>({
-    name: '',
     email: '',
     password: '',
     confirmPassword: '',
+    phoneNumber: '',
   });
 
   const [errors, setErrors] = useState<Partial<SignupFormData>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const validateForm = (): boolean => {
     const newErrors: Partial<SignupFormData> = {};
-
-    if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
-    } else if (formData.name.trim().length < 2) {
-      newErrors.name = 'Name must be at least 2 characters';
-    }
 
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email';
+    }
+
+    if (!formData.phoneNumber.trim()) {
+      newErrors.phoneNumber = 'Phone number is required';
+    } else if (!/^\d{10}$/.test(formData.phoneNumber.replace(/\D/g, ''))) {
+      newErrors.phoneNumber = 'Please enter a valid 10-digit phone number';
     }
 
     if (!formData.password) {
@@ -53,12 +56,27 @@ const SignupForm = ({ onSignup, onSwitchToLogin, isLoading = false }: SignupForm
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateForm()) {
-      const { confirmPassword, ...signupData } = formData;
-      onSignup(signupData);
+    
+    if (!validateForm()) return;
+
+    setIsLoading(true);
+    setApiError(null);
+
+    const response = await register({
+      email: formData.email,
+      password: formData.password,
+      phoneNumber: formData.phoneNumber,
+    });
+
+    if (response.success && response.data?.token) {
+      onSignupSuccess(response.data.token, formData.email);
+    } else {
+      setApiError(response.error || 'Registration failed. Please try again.');
     }
+
+    setIsLoading(false);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -98,29 +116,13 @@ const SignupForm = ({ onSignup, onSwitchToLogin, isLoading = false }: SignupForm
         <p>Join the aachar admin family</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="auth-form">
-        <div className="form-group">
-          <label htmlFor="name">Full Name</label>
-          <div className="input-wrapper">
-            <input
-              type="text"
-              id="name"
-              name="name"
-              value={formData.name}
-              onChange={handleInputChange}
-              className={errors.name ? 'error' : ''}
-              placeholder="John Doe"
-              disabled={isLoading}
-            />
-            <div className="input-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-              </svg>
-            </div>
-          </div>
-          {errors.name && <span className="error-message">{errors.name}</span>}
+      {apiError && (
+        <div className="alert alert-error">
+          ✕ {apiError}
         </div>
+      )}
 
+      <form onSubmit={handleSubmit} className="auth-form">
         <div className="form-group">
           <label htmlFor="email">Email Address</label>
           <div className="input-wrapper">
@@ -132,7 +134,7 @@ const SignupForm = ({ onSignup, onSwitchToLogin, isLoading = false }: SignupForm
               onChange={handleInputChange}
               className={errors.email ? 'error' : ''}
               placeholder="john@example.com"
-              disabled={isLoading}
+              disabled={isLoading || externalLoading}
             />
             <div className="input-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -141,6 +143,28 @@ const SignupForm = ({ onSignup, onSwitchToLogin, isLoading = false }: SignupForm
             </div>
           </div>
           {errors.email && <span className="error-message">{errors.email}</span>}
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="phoneNumber">Phone Number</label>
+          <div className="input-wrapper">
+            <input
+              type="tel"
+              id="phoneNumber"
+              name="phoneNumber"
+              value={formData.phoneNumber}
+              onChange={handleInputChange}
+              className={errors.phoneNumber ? 'error' : ''}
+              placeholder="10-digit phone number"
+              disabled={isLoading || externalLoading}
+            />
+            <div className="input-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 7.58 4 4 7.58 4 12s3.58 8 8 8c.04 0 .09 0 .13-.01l3.85 3.85c1.31-1.31 2.83-2.31 4.57-2.77l-5.39-5.41c.21-1.04.321-2.12.321-3.42zM12 8c2.21 0 4 1.79 4 4s-1.79 4-4 4-4-1.79-4-4 1.79-4 4-4z"/>
+              </svg>
+            </div>
+          </div>
+          {errors.phoneNumber && <span className="error-message">{errors.phoneNumber}</span>}
         </div>
 
         <div className="form-group">
@@ -165,7 +189,7 @@ const SignupForm = ({ onSignup, onSwitchToLogin, isLoading = false }: SignupForm
               type="button"
               className="password-toggle"
               onClick={() => setShowPassword(!showPassword)}
-              disabled={isLoading}
+              disabled={isLoading || externalLoading}
             >
               {showPassword ? (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -208,7 +232,7 @@ const SignupForm = ({ onSignup, onSwitchToLogin, isLoading = false }: SignupForm
               onChange={handleInputChange}
               className={errors.confirmPassword ? 'error' : ''}
               placeholder="Confirm your password"
-              disabled={isLoading}
+              disabled={isLoading || externalLoading}
             />
             <div className="input-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -219,7 +243,7 @@ const SignupForm = ({ onSignup, onSwitchToLogin, isLoading = false }: SignupForm
               type="button"
               className="password-toggle"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              disabled={isLoading}
+              disabled={isLoading || externalLoading}
             >
               {showConfirmPassword ? (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -246,9 +270,9 @@ const SignupForm = ({ onSignup, onSwitchToLogin, isLoading = false }: SignupForm
         <button 
           type="submit" 
           className="auth-submit-btn"
-          disabled={isLoading}
+          disabled={isLoading || externalLoading}
         >
-          {isLoading ? (
+          {isLoading || externalLoading ? (
             <>
               <div className="spinner"></div>
               Creating account...
@@ -265,7 +289,7 @@ const SignupForm = ({ onSignup, onSwitchToLogin, isLoading = false }: SignupForm
               type="button" 
               className="link-button" 
               onClick={onSwitchToLogin}
-              disabled={isLoading}
+              disabled={isLoading || externalLoading}
             >
               Sign in
             </button>

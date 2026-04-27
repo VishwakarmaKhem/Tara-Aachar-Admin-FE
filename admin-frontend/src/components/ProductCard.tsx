@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Product } from '../types/Product';
+import type { Product, ProductVariant } from '../types/Product';
 import './ProductCard.css';
 
 interface ProductCardProps {
@@ -13,18 +13,19 @@ const ProductCard = ({ product, onEdit, onDelete, viewMode }: ProductCardProps) 
   const [isExpanded, setIsExpanded] = useState(false);
 
   const handleDelete = () => {
-    if (window.confirm(`Are you sure you want to delete "${product.name}"?`)) {
-      onDelete(product.id);
+    if (window.confirm(`Are you sure you want to delete "${product.title}"?`)) {
+      onDelete(product.id!);
     }
   };
 
-  const getSpiceLevelColor = (level: string) => {
-    switch (level) {
-      case 'Mild': return '#28a745';
-      case 'Medium': return '#ffc107';
-      case 'Hot': return '#fd7e14';
-      case 'Extra Hot': return '#dc3545';
-      default: return '#6c757d';
+  const getVariantColor = (variant: ProductVariant) => {
+    switch (variant) {
+      case 'MILD':   return '#28a745';
+      case 'TANGY':  return '#ffc107';
+      case 'SPICY':  return '#fd7e14';
+      case 'SWEET':  return '#e83e8c';
+      case 'MIXED':  return '#6f42c1';
+      default:       return '#6c757d';
     }
   };
 
@@ -34,11 +35,7 @@ const ProductCard = ({ product, onEdit, onDelete, viewMode }: ProductCardProps) 
         <div className="row-content">
           <div className="row-main">
             <div className="row-header">
-              <h3 className="product-name">{product.name}</h3>
-              <div className="product-badges">
-                {product.featured && <span className="badge featured">Featured</span>}
-                {!product.inStock && <span className="badge out-of-stock">Out of Stock</span>}
-              </div>
+              <h3 className="product-name">{product.title}</h3>
             </div>
             <div className="row-details">
               <span className="detail-item">
@@ -48,22 +45,19 @@ const ProductCard = ({ product, onEdit, onDelete, viewMode }: ProductCardProps) 
                 <strong>Price:</strong> ₹{product.price}
               </span>
               <span className="detail-item">
-                <strong>Weight:</strong> {product.weight}
-              </span>
-              <span className="detail-item">
-                <strong>Spice:</strong> 
-                <span 
+                <strong>Variant:</strong>
+                <span
                   className="spice-level"
-                  style={{ color: getSpiceLevelColor(product.spiceLevel) }}
+                  style={{ color: getVariantColor(product.variant) }}
                 >
-                  {product.spiceLevel}
+                  {product.variant}
                 </span>
               </span>
             </div>
           </div>
-          
+
           <div className="row-actions">
-            <button 
+            <button
               className="btn btn-expand"
               onClick={() => setIsExpanded(true)}
               title="Expand to see full details"
@@ -73,13 +67,13 @@ const ProductCard = ({ product, onEdit, onDelete, viewMode }: ProductCardProps) 
               </svg>
               Expand
             </button>
-            <button 
+            <button
               className="btn btn-primary"
               onClick={() => onEdit(product)}
             >
               Edit
             </button>
-            <button 
+            <button
               className="btn btn-danger"
               onClick={handleDelete}
             >
@@ -95,7 +89,7 @@ const ProductCard = ({ product, onEdit, onDelete, viewMode }: ProductCardProps) 
     <div className={`product-card ${viewMode === 'list' ? 'expanded' : ''}`}>
       {viewMode === 'list' && (
         <div className="collapse-header">
-          <button 
+          <button
             className="btn btn-collapse"
             onClick={() => setIsExpanded(false)}
             title="Collapse to row view"
@@ -107,46 +101,48 @@ const ProductCard = ({ product, onEdit, onDelete, viewMode }: ProductCardProps) 
           </button>
         </div>
       )}
-      
+
       <div className="card-header">
         <div className="product-image">
           {product.imageUrl ? (
-            <img src={product.imageUrl} alt={product.name} />
+            <img src={product.imageUrl} alt={product.title} />
           ) : (
             <div className="image-placeholder">🥒</div>
           )}
         </div>
-        <div className="product-badges">
-          {product.featured && <span className="badge featured">Featured</span>}
-          {!product.inStock && <span className="badge out-of-stock">Out of Stock</span>}
-        </div>
       </div>
-      
+
       <div className="card-content">
-        <h3 className="product-name">{product.name}</h3>
+        <h3 className="product-name">{product.title}</h3>
         <p className="product-category">{product.category}</p>
         <p className="product-description">{product.description}</p>
-        
+
         <div className="product-details">
           <div className="detail-row">
             <span className="detail-label">Price:</span>
             <span className="detail-value">₹{product.price}</span>
           </div>
           <div className="detail-row">
-            <span className="detail-label">Weight:</span>
-            <span className="detail-value">{product.weight}</span>
+            <span className="detail-label">Variant:</span>
+            <span
+              className="detail-value spice-level"
+              style={{ color: getVariantColor(product.variant) }}
+            >
+              {product.variant}
+            </span>
           </div>
           <div className="detail-row">
-            <span className="detail-label">Spice Level:</span>
-            <span 
-              className="detail-value spice-level"
-              style={{ color: getSpiceLevelColor(product.spiceLevel) }}
-            >
-              {product.spiceLevel}
+            <span className="detail-label">Manufacturer:</span>
+            <span className="detail-value">{product.manufacturerName}</span>
+          </div>
+          <div className="detail-row">
+            <span className="detail-label">Custom Ingredients:</span>
+            <span className="detail-value">
+              {product.allowsCustomIngredients ? 'Yes' : 'No'}
             </span>
           </div>
         </div>
-        
+
         <div className="ingredients">
           <span className="detail-label">Ingredients:</span>
           <div className="ingredients-list">
@@ -158,15 +154,15 @@ const ProductCard = ({ product, onEdit, onDelete, viewMode }: ProductCardProps) 
           </div>
         </div>
       </div>
-      
+
       <div className="card-actions">
-        <button 
+        <button
           className="btn btn-primary"
           onClick={() => onEdit(product)}
         >
           Edit
         </button>
-        <button 
+        <button
           className="btn btn-danger"
           onClick={handleDelete}
         >
