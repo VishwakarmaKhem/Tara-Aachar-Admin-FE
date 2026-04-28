@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import type { Product, User } from '../types/Product';
+import type { Product } from '../types/Product';
+import type { User } from '../types/Auth';
 import ProductList from './ProductList';
 import ProductForm from './ProductForm';
 import Header from './Header';
 import ConfirmModal from './ConfirmModal';
-import { getAllProducts, deleteProduct, getProductById } from '../services/productService';
+import LoadingSpinner from './LoadingSpinner';
+import { deleteProduct, getProductById } from '../services/productService';
+import { useProducts } from '../hooks/useProducts';
 import './AdminPanel.css';
 
 interface AdminPanelProps {
@@ -17,29 +20,23 @@ const AdminPanel = ({ user, onLogout }: AdminPanelProps) => {
   const navigate = useNavigate();
   const { productId } = useParams();
   const [searchParams] = useSearchParams();
-  
-  // Determine view: if productId exists in URL, it's edit mode
+
   const view = productId ? 'edit' : (searchParams.get('view') || 'list');
-  
-  const [products, setProducts] = useState<Product[]>([]);
+
+  const { products, isLoading, error, hasMore, currentPage, setCurrentPage, refetch } = useProducts();
+
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize] = useState(10);
-  const [hasMore, setHasMore] = useState(true);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; productId: string | null; productTitle: string }>({
-    isOpen: false,
-    productId: null,
-    productTitle: '',
-  });
+  const [editLoading, setEditLoading] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean; productId: string | null; productTitle: string;
+  }>({ isOpen: false, productId: null, productTitle: '' });
 
   // Fetch products on component mount or when page changes
   useEffect(() => {
     if (view === 'list') {
-      fetchProducts();
+      refetch();
     }
-  }, [currentPage, view]);
+  }, [view]);
 
   // Fetch product for editing when productId changes
   useEffect(() => {
@@ -51,25 +48,14 @@ const AdminPanel = ({ user, onLogout }: AdminPanelProps) => {
   }, [productId]);
 
   const fetchProductForEdit = async (id: string) => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const response = await getProductById(id);
-      
-      if (response.success && response.data) {
-        setEditingProduct(response.data);
-      } else {
-        setError(response.error || 'Failed to fetch product details');
-        navigate('/admin?view=list');
-      }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to fetch product details';
-      setError(errorMsg);
+    setEditLoading(true);
+    const response = await getProductById(id);
+    if (response.success && response.data) {
+      setEditingProduct(response.data);
+    } else {
       navigate('/admin?view=list');
-    } finally {
-      setIsLoading(false);
     }
+    setEditLoading(false);
   };
 
   const fetchProducts = async () => {
@@ -92,15 +78,15 @@ const AdminPanel = ({ user, onLogout }: AdminPanelProps) => {
     }
   };
 
-  const handleProductCreated = (newProduct: Product) => {
-    // Reset to first page and navigate to list
+  const handleProductCreated = (_newProduct: Product) => {
     setCurrentPage(0);
-    navigate('/admin?view=list');
+    refetch();
+    navigate('/admin');
   };
 
-  const handleProductUpdated = (updatedProduct: Product) => {
-    // Navigate back to list
-    navigate('/admin?view=list');
+  const handleProductUpdated = (_updatedProduct: Product) => {
+    refetch();
+    navigate('/admin');
   };
 
   const handleEditProduct = (product: Product) => {
@@ -120,39 +106,33 @@ const AdminPanel = ({ user, onLogout }: AdminPanelProps) => {
 
   const confirmDelete = async () => {
     if (!deleteConfirm.productId) return;
-    
     const response = await deleteProduct(deleteConfirm.productId);
     if (response.success) {
-      setProducts(products.filter(p => p.id !== deleteConfirm.productId));
-      setDeleteConfirm({ isOpen: false, productId: null, productTitle: '' });
-    } else {
-      alert('Failed to delete product: ' + response.error);
-      setDeleteConfirm({ isOpen: false, productId: null, productTitle: '' });
+      refetch();
     }
+    setDeleteConfirm({ isOpen: false, productId: null, productTitle: '' });
   };
 
   const cancelDelete = () => {
     setDeleteConfirm({ isOpen: false, productId: null, productTitle: '' });
   };
 
-  const handleCancelEdit = () => {
-    navigate('/admin?view=list');
-  };
+  const handleCancelEdit = () => navigate('/admin');
 
   const activeTab = view === 'create' || view === 'edit' ? 'create' : 'list';
 
   return (
     <div className="admin-panel">
       <Header user={user} onLogout={onLogout} />
-      
+
       <nav className="admin-nav">
-        <button 
+        <button
           className={`nav-button ${activeTab === 'list' ? 'active' : ''}`}
-          onClick={() => navigate('/admin?view=list')}
+          onClick={() => navigate('/admin')}
         >
           Product List {isLoading && view === 'list' ? '...' : `(${products.length})`}
         </button>
-        <button 
+        <button
           className={`nav-button ${activeTab === 'create' ? 'active' : ''}`}
           onClick={() => navigate('/admin?view=create')}
         >
@@ -164,12 +144,14 @@ const AdminPanel = ({ user, onLogout }: AdminPanelProps) => {
         {error && (
           <div className="error-banner">
             ⚠️ {error}
-            <button onClick={fetchProducts} className="retry-btn">Retry</button>
+            <button onClick={refetch} className="retry-btn">Retry</button>
           </div>
         )}
-        
-        {activeTab === 'list' ? (
-          <ProductList 
+
+        {editLoading ? (
+          <LoadingSpinner message="Loading product details..." />
+        ) : activeTab === 'list' ? (
+          <ProductList
             products={products}
             onEdit={handleEditProduct}
             onDelete={handleDeleteProduct}
@@ -179,7 +161,7 @@ const AdminPanel = ({ user, onLogout }: AdminPanelProps) => {
             hasMore={hasMore}
           />
         ) : (
-          <ProductForm 
+          <ProductForm
             product={editingProduct}
             onCancel={view === 'edit' || editingProduct ? handleCancelEdit : undefined}
             onSuccess={view === 'edit' || editingProduct ? handleProductUpdated : handleProductCreated}

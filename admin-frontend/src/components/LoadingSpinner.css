@@ -1,0 +1,34 @@
+.spinner-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 3rem;
+}
+
+.spinner-container.fullscreen {
+  position: fixed;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.9);
+  z-index: 9999;
+}
+
+.spinner-ring {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e9ecef;
+  border-top-color: #007bff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.spinner-message {
+  color: #6c757d;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
