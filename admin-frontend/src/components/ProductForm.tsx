@@ -35,16 +35,16 @@ const ProductForm = ({ product, onCancel, onSuccess }: ProductFormProps) => {
   useEffect(() => {
     if (product) {
       setFormData({
-        title: product.title,
-        description: product.description,
-        price: product.price,
-        category: product.category,
-        variant: product.variant,
-        ingredients: product.ingredients.join(', '),
-        imageUrl: product.imageUrl,
-        manufacturerName: product.manufacturerName,
-        manufacturerLicense: product.manufacturerLicense,
-        allowsCustomIngredients: product.allowsCustomIngredients,
+        title: product.title || '',
+        description: product.description || '',
+        price: product.price || 0,
+        category: product.category || '',
+        variant: product.variant || 'TANGY',
+        ingredients: product.ingredients?.join(', ') || '',
+        imageUrl: product.imageUrl || '',
+        manufacturerName: product.manufacturerName || '',
+        manufacturerLicense: product.manufacturerLicense || '',
+        allowsCustomIngredients: product.allowsCustomIngredients || false,
       });
     }
   }, [product]);
@@ -52,15 +52,18 @@ const ProductForm = ({ product, onCancel, onSuccess }: ProductFormProps) => {
   const validateForm = (): boolean => {
     const newErrors: ProductFormErrors = {};
 
-    if (!formData.title.trim()) newErrors.title = 'Product title is required';
-    if (!formData.description.trim()) newErrors.description = 'Description is required';
+    if (!formData.title?.trim()) newErrors.title = 'Product title is required';
+    if (!formData.description?.trim()) newErrors.description = 'Description is required';
     if (formData.price <= 0) newErrors.price = 'Price must be greater than 0';
-    if (!formData.category.trim()) newErrors.category = 'Category is required';
-    if (!formData.variant.trim()) newErrors.variant = 'Variant is required';
-    if (!formData.ingredients.trim()) newErrors.ingredients = 'Ingredients are required';
-    if (!formData.manufacturerName.trim()) newErrors.manufacturerName = 'Manufacturer name is required';
-    if (!formData.manufacturerLicense.trim()) newErrors.manufacturerLicense = 'Manufacturer license is required';
+    if (!formData.category?.trim()) newErrors.category = 'Category is required';
+    if (!formData.variant?.trim()) newErrors.variant = 'Variant is required';
+    if (!formData.ingredients?.trim()) newErrors.ingredients = 'Ingredients are required';
+    if (!formData.manufacturerName?.trim()) newErrors.manufacturerName = 'Manufacturer name is required';
+    if (!formData.manufacturerLicense?.trim()) newErrors.manufacturerLicense = 'Manufacturer license is required';
 
+    console.log('Validation errors:', newErrors);
+    console.log('Form data:', formData);
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -68,7 +71,12 @@ const ProductForm = ({ product, onCancel, onSuccess }: ProductFormProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm()) return;
+    console.log('Form submitted', { product, formData });
+    
+    if (!validateForm()) {
+      console.log('Validation failed');
+      return;
+    }
 
     setIsLoading(true);
     setErrorMessage('');
@@ -79,16 +87,22 @@ const ProductForm = ({ product, onCancel, onSuccess }: ProductFormProps) => {
       ingredients: formData.ingredients.split(',').map(i => i.trim()).filter(i => i),
     };
 
+    console.log('Product data prepared:', productData);
+
     try {
       let response;
       
-      if (product) {
+      if (product && product.id) {
         // Update existing product
+        console.log('Calling updateProduct with ID:', product.id);
         response = await updateProduct(product.id, productData);
       } else {
         // Create new product
+        console.log('Calling createProduct');
         response = await createProduct(productData);
       }
+
+      console.log('API response:', response);
 
       if (response.success && response.data) {
         setSuccessMessage(response.message);
@@ -104,6 +118,7 @@ const ProductForm = ({ product, onCancel, onSuccess }: ProductFormProps) => {
         setErrorMessage(response.error || 'Failed to save product');
       }
     } catch (error) {
+      console.error('Submit error:', error);
       const errorMsg = error instanceof Error ? error.message : 'An unexpected error occurred';
       setErrorMessage(errorMsg);
     } finally {

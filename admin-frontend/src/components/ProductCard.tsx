@@ -13,9 +13,7 @@ const ProductCard = ({ product, onEdit, onDelete, viewMode }: ProductCardProps) 
   const [isExpanded, setIsExpanded] = useState(false);
 
   const handleDelete = () => {
-    if (window.confirm(`Are you sure you want to delete "${product.title}"?`)) {
-      onDelete(product.id!);
-    }
+    onDelete(product.id!);
   };
 
   const getVariantColor = (variant: ProductVariant) => {

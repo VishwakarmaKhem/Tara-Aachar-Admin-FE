@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './App.css'
 import AdminPanel from './components/AdminPanel'
 import AuthPage from './components/AuthPage'
@@ -42,14 +43,27 @@ function App() {
     return null; // or a loading spinner
   }
 
-  if (!user) {
-    return <AuthPage onAuthSuccess={handleAuthSuccess} />;
-  }
-
   return (
-    <div className="app">
-      <AdminPanel user={user} onLogout={handleLogout} />
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route 
+          path="/login" 
+          element={!user ? <AuthPage onAuthSuccess={handleAuthSuccess} /> : <Navigate to="/admin?view=list" replace />} 
+        />
+        <Route 
+          path="/admin" 
+          element={user ? <AdminPanel user={user} onLogout={handleLogout} /> : <Navigate to="/login" replace />} 
+        />
+        <Route 
+          path="/admin/edit/:productId" 
+          element={user ? <AdminPanel user={user} onLogout={handleLogout} /> : <Navigate to="/login" replace />} 
+        />
+        <Route 
+          path="/" 
+          element={<Navigate to={user ? "/admin?view=list" : "/login"} replace />} 
+        />
+      </Routes>
+    </BrowserRouter>
   )
 }
 

@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { Product, User } from '../types/Product';
 import ProductList from './ProductList';
 import ProductForm from './ProductForm';
 import Header from './Header';
-import { getAllProducts, deleteProduct } from '../services/productService';
+import ConfirmModal from './ConfirmModal';
+import { getAllProducts, deleteProduct, getProductById } from '../services/productService';
 import './AdminPanel.css';
 
 interface AdminPanelProps {
@@ -12,19 +14,63 @@ interface AdminPanelProps {
 }
 
 const AdminPanel = ({ user, onLogout }: AdminPanelProps) => {
+  const navigate = useNavigate();
+  const { productId } = useParams();
+  const [searchParams] = useSearchParams();
+  
+  // Determine view: if productId exists in URL, it's edit mode
+  const view = productId ? 'edit' : (searchParams.get('view') || 'list');
+  
   const [products, setProducts] = useState<Product[]>([]);
-  const [activeTab, setActiveTab] = useState<'list' | 'create'>('list');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize] = useState(10);
   const [hasMore, setHasMore] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; productId: string | null; productTitle: string }>({
+    isOpen: false,
+    productId: null,
+    productTitle: '',
+  });
 
   // Fetch products on component mount or when page changes
   useEffect(() => {
-    fetchProducts();
-  }, [currentPage]);
+    if (view === 'list') {
+      fetchProducts();
+    }
+  }, [currentPage, view]);
+
+  // Fetch product for editing when productId changes
+  useEffect(() => {
+    if (productId) {
+      fetchProductForEdit(productId);
+    } else {
+      setEditingProduct(null);
+    }
+  }, [productId]);
+
+  const fetchProductForEdit = async (id: string) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const response = await getProductById(id);
+      
+      if (response.success && response.data) {
+        setEditingProduct(response.data);
+      } else {
+        setError(response.error || 'Failed to fetch product details');
+        navigate('/admin?view=list');
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to fetch product details';
+      setError(errorMsg);
+      navigate('/admin?view=list');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const fetchProducts = async () => {
     setIsLoading(true);
@@ -47,39 +93,53 @@ const AdminPanel = ({ user, onLogout }: AdminPanelProps) => {
   };
 
   const handleProductCreated = (newProduct: Product) => {
-    // Reset to first page and refetch to see the new product
+    // Reset to first page and navigate to list
     setCurrentPage(0);
-    fetchProducts();
-    setActiveTab('list');
+    navigate('/admin?view=list');
   };
 
   const handleProductUpdated = (updatedProduct: Product) => {
-    // Refetch products to get the latest data from the server
-    fetchProducts();
-    setEditingProduct(null);
-    setActiveTab('list');
+    // Navigate back to list
+    navigate('/admin?view=list');
   };
 
   const handleEditProduct = (product: Product) => {
-    setEditingProduct(product);
-    setActiveTab('create');
+    if (!product.id) return;
+    navigate(`/admin/edit/${product.id}`);
   };
 
-  const handleDeleteProduct = async (productId: string) => {
-    if (!confirm('Are you sure you want to delete this product?')) return;
+  const handleDeleteProduct = (productId: string) => {
+    // Find the product to get its title
+    const product = products.find(p => p.id === productId);
+    setDeleteConfirm({
+      isOpen: true,
+      productId,
+      productTitle: product?.title || 'this product',
+    });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm.productId) return;
     
-    const response = await deleteProduct(productId);
+    const response = await deleteProduct(deleteConfirm.productId);
     if (response.success) {
-      setProducts(products.filter(p => p.id !== productId));
+      setProducts(products.filter(p => p.id !== deleteConfirm.productId));
+      setDeleteConfirm({ isOpen: false, productId: null, productTitle: '' });
     } else {
       alert('Failed to delete product: ' + response.error);
+      setDeleteConfirm({ isOpen: false, productId: null, productTitle: '' });
     }
   };
 
-  const handleCancelEdit = () => {
-    setEditingProduct(null);
-    setActiveTab('list');
+  const cancelDelete = () => {
+    setDeleteConfirm({ isOpen: false, productId: null, productTitle: '' });
   };
+
+  const handleCancelEdit = () => {
+    navigate('/admin?view=list');
+  };
+
+  const activeTab = view === 'create' || view === 'edit' ? 'create' : 'list';
 
   return (
     <div className="admin-panel">
@@ -88,18 +148,15 @@ const AdminPanel = ({ user, onLogout }: AdminPanelProps) => {
       <nav className="admin-nav">
         <button 
           className={`nav-button ${activeTab === 'list' ? 'active' : ''}`}
-          onClick={() => {
-            setActiveTab('list');
-            setEditingProduct(null);
-          }}
+          onClick={() => navigate('/admin?view=list')}
         >
-          Product List {isLoading ? '...' : `(${products.length})`}
+          Product List {isLoading && view === 'list' ? '...' : `(${products.length})`}
         </button>
         <button 
           className={`nav-button ${activeTab === 'create' ? 'active' : ''}`}
-          onClick={() => setActiveTab('create')}
+          onClick={() => navigate('/admin?view=create')}
         >
-          {editingProduct ? 'Edit Product' : 'Create Product'}
+          {view === 'edit' ? 'Edit Product' : 'Create Product'}
         </button>
       </nav>
 
@@ -116,7 +173,7 @@ const AdminPanel = ({ user, onLogout }: AdminPanelProps) => {
             products={products}
             onEdit={handleEditProduct}
             onDelete={handleDeleteProduct}
-            isLoading={isLoading}
+            isLoading={isLoading && view === 'list'}
             currentPage={currentPage}
             onPageChange={setCurrentPage}
             hasMore={hasMore}
@@ -124,11 +181,22 @@ const AdminPanel = ({ user, onLogout }: AdminPanelProps) => {
         ) : (
           <ProductForm 
             product={editingProduct}
-            onCancel={editingProduct ? handleCancelEdit : undefined}
-            onSuccess={editingProduct ? handleProductUpdated : handleProductCreated}
+            onCancel={view === 'edit' || editingProduct ? handleCancelEdit : undefined}
+            onSuccess={view === 'edit' || editingProduct ? handleProductUpdated : handleProductCreated}
           />
         )}
       </main>
+
+      <ConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        title="Delete Product"
+        message={`Are you sure you want to delete "${deleteConfirm.productTitle}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+      />
     </div>
   );
 };
