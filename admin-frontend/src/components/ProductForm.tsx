@@ -61,22 +61,14 @@ const ProductForm = ({ product, onCancel, onSuccess }: ProductFormProps) => {
     if (!formData.manufacturerName?.trim()) newErrors.manufacturerName = 'Manufacturer name is required';
     if (!formData.manufacturerLicense?.trim()) newErrors.manufacturerLicense = 'Manufacturer license is required';
 
-    console.log('Validation errors:', newErrors);
-    console.log('Form data:', formData);
-    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    console.log('Form submitted', { product, formData });
-    
-    if (!validateForm()) {
-      console.log('Validation failed');
-      return;
-    }
+
+    if (!validateForm()) return;
 
     setIsLoading(true);
     setErrorMessage('');
@@ -84,25 +76,13 @@ const ProductForm = ({ product, onCancel, onSuccess }: ProductFormProps) => {
 
     const productData = {
       ...formData,
-      ingredients: formData.ingredients.split(',').map(i => i.trim()).filter(i => i),
+      ingredients: formData.ingredients.split(',').map(i => i.trim()).filter(Boolean),
     };
 
-    console.log('Product data prepared:', productData);
-
     try {
-      let response;
-      
-      if (product && product.id) {
-        // Update existing product
-        console.log('Calling updateProduct with ID:', product.id);
-        response = await updateProduct(product.id, productData);
-      } else {
-        // Create new product
-        console.log('Calling createProduct');
-        response = await createProduct(productData);
-      }
-
-      console.log('API response:', response);
+      const response = product?.id
+        ? await updateProduct(product.id, productData)
+        : await createProduct(productData);
 
       if (response.success && response.data) {
         setSuccessMessage(response.message);
@@ -118,7 +98,6 @@ const ProductForm = ({ product, onCancel, onSuccess }: ProductFormProps) => {
         setErrorMessage(response.error || 'Failed to save product');
       }
     } catch (error) {
-      console.error('Submit error:', error);
       const errorMsg = error instanceof Error ? error.message : 'An unexpected error occurred';
       setErrorMessage(errorMsg);
     } finally {

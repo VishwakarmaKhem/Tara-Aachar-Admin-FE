@@ -1,14 +1,12 @@
 import type { User } from '../types/Auth';
+import { logger } from '../utils/logger';
 
-const API_BASE_URL = 'https://tara-aachar-admin-be.onrender.com/api/v1/auth';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
 
 export interface AuthResponse {
   success: boolean;
   message: string;
-  data?: {
-    token: string;
-    user?: User;
-  };
+  data?: { token: string; user?: User };
   error?: string;
 }
 
@@ -23,9 +21,10 @@ export interface LoginData {
   password: string;
 }
 
-// Cookie helpers
-const setCookie = (name: string, value: string, days: number = 1): void => {
-  const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toUTCString();
+// ─── Cookie helpers ───────────────────────────────────────────────────────────
+
+const setCookie = (name: string, value: string, days = 1): void => {
+  const expires = new Date(Date.now() + days * 864e5).toUTCString();
   document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Strict`;
 };
 
@@ -38,138 +37,75 @@ const deleteCookie = (name: string): void => {
   document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Strict`;
 };
 
-// Register new user
-export const register = async (data: RegisterData): Promise<AuthResponse> => {
+// ─── Shared fetch helper ──────────────────────────────────────────────────────
+
+const authFetch = async (
+  endpoint: string,
+  body: object
+): Promise<AuthResponse> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/register`, {
+    const response = await fetch(`${BASE_URL}/auth/${endpoint}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: data.email,
-        password: data.password,
-        phoneNumber: Number(data.phoneNumber),
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
+      let message = `HTTP error! status: ${response.status}`;
       try {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      } catch (e) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+        const err = await response.json();
+        message = err.message || message;
+      } catch { /* ignore */ }
+      throw new Error(message);
     }
 
     const result = await response.json();
-    
-    // Store token and email in cookies
-    const token = result.data?.token;
+    const token: string = result.data?.token;
+    const email: string = result.data?.email ?? (body as LoginData).email;
+
     if (token) {
       setCookie('authToken', token);
-      setCookie('authEmail', data.email);
+      setCookie('authEmail', email);
     }
 
     return {
-      success: result.success || true,
-      message: result.message || 'Registration successful',
+      success: true,
+      message: result.message || 'Success',
       data: {
-        token: token || '',
+        token,
         user: {
           id: result.data?.sub || '',
-          email: result.data?.email || data.email,
-          name: (result.data?.email || data.email).split('@')[0],
+          email,
+          name: email.split('@')[0],
           role: result.data?.userType === 'ADMIN' ? 'admin' : 'user',
           createdAt: new Date(),
         },
       },
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Registration failed';
-    console.error('Register error:', error);
-    return {
-      success: false,
-      message: errorMessage,
-      error: errorMessage,
-    };
+    const errorMessage = error instanceof Error ? error.message : 'Auth failed';
+    logger.error(`[Auth] ${endpoint} failed:`, errorMessage);
+    return { success: false, message: errorMessage, error: errorMessage };
   }
 };
 
-// Login user
-export const login = async (data: LoginData): Promise<AuthResponse> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: data.email,
-        password: data.password,
-      }),
-    });
+// ─── Public API ───────────────────────────────────────────────────────────────
 
-    if (!response.ok) {
-      try {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      } catch (e) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-    }
+export const register = (data: RegisterData): Promise<AuthResponse> =>
+  authFetch('register', {
+    email: data.email,
+    password: data.password,
+    phoneNumber: Number(data.phoneNumber),
+  });
 
-    const result = await response.json();
-    
-    // Store token and email in cookies
-    const token = result.data?.token;
-    if (token) {
-      setCookie('authToken', token);
-      setCookie('authEmail', result.data?.email || data.email);
-    }
+export const login = (data: LoginData): Promise<AuthResponse> =>
+  authFetch('login', data);
 
-    return {
-      success: result.success || true,
-      message: result.message || 'Login successful',
-      data: {
-        token: token || '',
-        user: {
-          id: result.data?.sub || '',
-          email: result.data?.email || data.email,
-          name: (result.data?.email || data.email).split('@')[0],
-          role: result.data?.userType === 'ADMIN' ? 'admin' : 'user',
-          createdAt: new Date(),
-        },
-      },
-    };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Login failed';
-    console.error('Login error:', error);
-    return {
-      success: false,
-      message: errorMessage,
-      error: errorMessage,
-    };
-  }
-};
-
-// Logout user
 export const logout = (): void => {
   deleteCookie('authToken');
   deleteCookie('authEmail');
 };
 
-// Get stored token
-export const getToken = (): string | null => {
-  return getCookie('authToken');
-};
-
-// Get stored email
-export const getEmail = (): string | null => {
-  return getCookie('authEmail');
-};
-
-// Check if user is authenticated
-export const isAuthenticated = (): boolean => {
-  return !!getCookie('authToken');
-};
+export const getToken = (): string | null => getCookie('authToken');
+export const getEmail = (): string | null => getCookie('authEmail');
+export const isAuthenticated = (): boolean => !!getCookie('authToken');
