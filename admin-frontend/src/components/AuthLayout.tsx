@@ -22,7 +22,7 @@ const AuthLayout = ({ children }: AuthLayoutProps) => {
       <div className="auth-container">
         <div className="auth-brand">
           <div className="brand-icon">🥒</div>
-          <h1 className="brand-title">Aachar Admin</h1>
+          <h1 className="brand-title">Achar Admin</h1>
           <p className="brand-subtitle">Manage your pickle empire</p>
         </div>
         

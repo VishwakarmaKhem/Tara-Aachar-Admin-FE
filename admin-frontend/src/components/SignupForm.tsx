@@ -113,7 +113,7 @@ const SignupForm = ({ onSignupSuccess, onSwitchToLogin, isLoading: externalLoadi
     <div className="auth-form-container">
       <div className="auth-form-header">
         <h2>Create Account</h2>
-        <p>Join the aachar admin family</p>
+        <p>Join the achar admin family</p>
       </div>
 
       {apiError && (
@@ -133,7 +133,7 @@ const SignupForm = ({ onSignupSuccess, onSwitchToLogin, isLoading: externalLoadi
               value={formData.email}
               onChange={handleInputChange}
               className={errors.email ? 'error' : ''}
-              placeholder="john@example.com"
+              placeholder="john@achar.com"
               disabled={isLoading || externalLoading}
             />
             <div className="input-icon">

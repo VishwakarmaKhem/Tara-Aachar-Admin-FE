@@ -92,7 +92,7 @@ const LoginForm = ({ onLoginSuccess, onSwitchToSignup, isLoading: externalLoadin
               value={formData.email}
               onChange={handleInputChange}
               className={errors.email ? 'error' : ''}
-              placeholder="admin@aachar.com"
+              placeholder="admin@achar.com"
               disabled={isLoading || externalLoading}
             />
             <div className="input-icon">
