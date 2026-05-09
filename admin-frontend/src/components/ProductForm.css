@@ -348,20 +348,3 @@
     max-width: 100%;
   }
 }
-
-/* Word Count */
-.word-count {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 0.25rem;
-}
-
-.word-count span {
-  font-size: 0.75rem;
-  color: #6c757d;
-}
-
-.word-count span.word-count-limit {
-  color: #dc3545;
-  font-weight: 600;
-}
