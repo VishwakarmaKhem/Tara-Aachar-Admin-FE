@@ -4,6 +4,12 @@ import { createProduct, updateProduct } from '../services/productService';
 import { uploadImage } from '../services/imageService';
 import './ProductForm.css';
 
+const TITLE_WORD_LIMIT = 5;
+const DESC_WORD_LIMIT = 25;
+
+const countWords = (text: string): number =>
+  text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+
 interface ProductFormProps {
   product?: Product | null;
   onCancel?: () => void;
@@ -53,7 +59,9 @@ const ProductForm = ({ product, onCancel, onSuccess }: ProductFormProps) => {
     const newErrors: ProductFormErrors = {};
 
     if (!formData.title?.trim()) newErrors.title = 'Product title is required';
+    else if (countWords(formData.title) > TITLE_WORD_LIMIT) newErrors.title = `Title must be ${TITLE_WORD_LIMIT} words or less`;
     if (!formData.description?.trim()) newErrors.description = 'Description is required';
+    else if (countWords(formData.description) > DESC_WORD_LIMIT) newErrors.description = `Description must be ${DESC_WORD_LIMIT} words or less`;
     if (formData.price <= 0) newErrors.price = 'Price must be greater than 0';
     if (!formData.category?.trim()) newErrors.category = 'Category is required';
     if (!formData.variant?.trim()) newErrors.variant = 'Variant is required';
@@ -109,17 +117,20 @@ const ProductForm = ({ product, onCancel, onSuccess }: ProductFormProps) => {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value, type } = e.target;
-    
+
+    // Enforce word limits for title and description
+    if (name === 'title' && countWords(value) > TITLE_WORD_LIMIT) return;
+    if (name === 'description' && countWords(value) > DESC_WORD_LIMIT) return;
+
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' 
+      [name]: type === 'checkbox'
         ? (e.target as HTMLInputElement).checked
-        : type === 'number' 
+        : type === 'number'
         ? Number(value) || 0
         : value
     }));
 
-    // Clear error when user starts typing
     if (errors[name as keyof ProductFormErrors]) {
       setErrors(prev => ({ ...prev, [name]: undefined }));
     }
@@ -203,6 +214,11 @@ const ProductForm = ({ product, onCancel, onSuccess }: ProductFormProps) => {
               className={errors.title ? 'error' : ''}
               placeholder="e.g., Amla Pickle"
             />
+            <div className="word-count">
+              <span className={countWords(formData.title) >= TITLE_WORD_LIMIT ? 'word-count-limit' : ''}>
+                {countWords(formData.title)}/{TITLE_WORD_LIMIT} words
+              </span>
+            </div>
             {errors.title && <span className="error-message">{errors.title}</span>}
           </div>
 
@@ -340,8 +356,13 @@ const ProductForm = ({ product, onCancel, onSuccess }: ProductFormProps) => {
             onChange={handleInputChange}
             className={errors.description ? 'error' : ''}
             rows={4}
-            placeholder="Describe your aachar product..."
+            placeholder="Describe your achar product..."
           />
+          <div className="word-count">
+            <span className={countWords(formData.description) >= DESC_WORD_LIMIT ? 'word-count-limit' : ''}>
+              {countWords(formData.description)}/{DESC_WORD_LIMIT} words
+            </span>
+          </div>
           {errors.description && <span className="error-message">{errors.description}</span>}
         </div>
 
